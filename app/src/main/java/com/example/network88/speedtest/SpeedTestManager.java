@@ -46,8 +46,11 @@ public class SpeedTestManager {
         void onError(Phase phase, String message);
     }
 
-    // Public test targets. Fixed duration keeps a single run bounded and comparable.
-    private static final String DOWNLOAD_URL = "https://speed.hetzner.de/100MB.bin";
+    // Public test targets. Both use plain HTTP on the same host: the previous
+    // https://speed.hetzner.de endpoint was unreachable on real networks, and
+    // jspeedtest's HTTPS handling is unreliable. tele2 is jspeedtest's canonical
+    // test server and serves both a download file and an upload sink over HTTP.
+    private static final String DOWNLOAD_URL = "http://speedtest.tele2.net/100MB.zip";
     private static final String UPLOAD_URL = "http://speedtest.tele2.net/upload.php";
     private static final int DOWNLOAD_DURATION_MS = 8000;
     private static final int UPLOAD_DURATION_MS = 8000;

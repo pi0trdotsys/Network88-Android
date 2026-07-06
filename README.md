@@ -62,9 +62,11 @@ upload rates, ping, IP address and subnet mask:</p>
 
 <h3>📸 Screenshots</h3>
 <p>
-  <img src="docs/screenshots/home.png" width="270px" alt="Home screen showing the latest download, upload, ping, IP and subnet results">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/history.png" width="270px" alt="Measurement history screen listing previous speed tests">
+  <img src="docs/screenshots/home.png" width="240px" alt="Home screen showing the latest download, upload, ping, IP and subnet results">
+  &nbsp;
+  <img src="docs/screenshots/measuring.png" width="240px" alt="Speed test in progress with live download speed and a progress indicator">
+  &nbsp;
+  <img src="docs/screenshots/history.png" width="240px" alt="Measurement history screen listing previous speed tests">
 </p>
 
 <h2>👇 APK Download</h2>

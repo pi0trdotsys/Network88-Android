@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The speed test uses plain-HTTP endpoints on speedtest.tele2.net. Android blocks
+  cleartext traffic by default from API 28+, so allow it just for that host.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">speedtest.tele2.net</domain>
+    </domain-config>
+</network-security-config>
