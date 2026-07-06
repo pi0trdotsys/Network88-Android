@@ -5,162 +5,254 @@ import android.os.Looper;
 
 import androidx.annotation.NonNull;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.concurrent.CountDownLatch;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
-import fr.bmartel.speedtest.SpeedTestReport;
-import fr.bmartel.speedtest.SpeedTestSocket;
-import fr.bmartel.speedtest.inter.ISpeedTestListener;
-import fr.bmartel.speedtest.model.SpeedTestError;
+import okhttp3.Call;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import okio.BufferedSink;
 
 /**
- * Runs a download test followed by an upload test <b>sequentially</b> on a
- * background thread and reports progress / results on the main thread.
+ * Multi-connection speed test built on OkHttp against Cloudflare's global CDN
+ * ({@code speed.cloudflare.com}).
  *
- * <p>Why sequential: running download and upload at the same time makes them
- * compete for the same link, so both figures come out wrong. Each phase now runs
- * on its own {@link SpeedTestSocket} and the next phase only starts once the
- * previous one has actually completed (or errored) — coordinated with a
- * {@link CountDownLatch} instead of a fixed {@code sleep()}.</p>
- *
- * <p>The reported rate is taken from {@code onCompletion} (the final, accurate
- * figure) rather than the last {@code onProgress} snapshot.</p>
+ * <p>Why not a single stream: one TCP connection to a distant server cannot
+ * saturate a fast link (its throughput is bounded by the window / round-trip
+ * time and the server's own rate limiting), so it badly under-reports high-speed
+ * connections. Real speed tests open <b>several parallel connections to a nearby
+ * server</b>. This runs {@value #DOWNLOAD_STREAMS} concurrent download streams
+ * and {@value #UPLOAD_STREAMS} upload streams, sums the bytes transferred, and
+ * measures the rate over a steady-state window after discarding an initial
+ * warm-up (TCP slow-start), which is where a single-stream test loses accuracy.</p>
  */
 public class SpeedTestManager {
 
     public enum Phase {DOWNLOAD, UPLOAD}
 
     public interface Listener {
-        /** Live progress for the current phase (0-100%) and instantaneous rate in Mbit/s. */
         void onProgress(Phase phase, float percent, double mbps);
 
-        /** Both phases finished successfully. */
         void onFinished(double downloadMbps, double uploadMbps);
 
-        /** A phase failed; the run is aborted. */
         void onError(Phase phase, String message);
     }
 
-    // Public test targets. Both use plain HTTP on the same host: the previous
-    // https://speed.hetzner.de endpoint was unreachable on real networks, and
-    // jspeedtest's HTTPS handling is unreliable. tele2 is jspeedtest's canonical
-    // test server and serves both a download file and an upload sink over HTTP.
-    private static final String DOWNLOAD_URL = "http://speedtest.tele2.net/100MB.zip";
-    private static final String UPLOAD_URL = "http://speedtest.tele2.net/upload.php";
-    private static final int DOWNLOAD_DURATION_MS = 8000;
-    private static final int UPLOAD_DURATION_MS = 8000;
-    private static final int UPLOAD_SIZE_BYTES = 10_000_000;
-    // Safety net so a stalled socket can never hang the run forever.
-    private static final long PHASE_TIMEOUT_MS = 30_000;
+    // Cloudflare Anycast endpoints: close to the user via CDN, HTTPS, high capacity.
+    // __down caps the byte count (100MB+ returns 403), so each request pulls a
+    // bounded chunk and every stream loops requests to stay saturated.
+    private static final long CHUNK_BYTES = 50_000_000L;
+    private static final String DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=" + CHUNK_BYTES;
+    private static final String UPLOAD_URL = "https://speed.cloudflare.com/__up";
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final int DOWNLOAD_STREAMS = 6;
+    private static final int UPLOAD_STREAMS = 4;
+    private static final long WARMUP_MS = 2_000;   // discarded: TCP slow-start ramp
+    private static final long MEASURE_MS = 8_000;  // steady-state measurement window
+    private static final long SAMPLE_MS = 400;     // progress update cadence
+    private static final int BUFFER = 64 * 1024;
+
+    private final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build();
+
+    private final ExecutorService orchestrator = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    /** Result of a single phase: either a rate (Mbit/s) or an error message. */
-    private static final class PhaseResult {
-        double mbps;
-        String error;
-    }
-
     public void start(@NonNull final Listener listener) {
-        executor.execute(() -> {
-            PhaseResult download = runPhase(Phase.DOWNLOAD, listener);
-            if (download.error != null) {
-                postError(listener, Phase.DOWNLOAD, download.error);
-                return;
+        orchestrator.execute(() -> {
+            try {
+                double download = measure(Phase.DOWNLOAD, DOWNLOAD_STREAMS, listener);
+                double upload = measure(Phase.UPLOAD, UPLOAD_STREAMS, listener);
+                mainHandler.post(() -> listener.onFinished(download, upload));
+            } catch (final MeasureException e) {
+                mainHandler.post(() -> listener.onError(e.phase, e.getMessage()));
             }
-            PhaseResult upload = runPhase(Phase.UPLOAD, listener);
-            if (upload.error != null) {
-                postError(listener, Phase.UPLOAD, upload.error);
-                return;
-            }
-            final double dl = download.mbps;
-            final double ul = upload.mbps;
-            mainHandler.post(() -> listener.onFinished(dl, ul));
         });
     }
 
-    private PhaseResult runPhase(final Phase phase, final Listener listener) {
-        final PhaseResult result = new PhaseResult();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final SpeedTestSocket socket = new SpeedTestSocket();
-        // Guard against the listener firing more than once (progress + completion race).
-        final AtomicReference<Boolean> done = new AtomicReference<>(false);
+    /** Runs one phase and returns the measured rate in Mbit/s. */
+    private double measure(Phase phase, int streams, Listener listener) throws MeasureException {
+        final AtomicLong bytes = new AtomicLong(0);
+        final AtomicBoolean running = new AtomicBoolean(true);
+        final AtomicBoolean anyData = new AtomicBoolean(false);
+        final List<Call> calls = new ArrayList<>();
+        final ExecutorService pool = Executors.newFixedThreadPool(streams);
 
-        socket.addSpeedTestListener(new ISpeedTestListener() {
-            @Override
-            public void onCompletion(SpeedTestReport report) {
-                if (done.compareAndSet(false, true)) {
-                    result.mbps = toMbps(report);
-                    latch.countDown();
-                }
-            }
-
-            @Override
-            public void onError(SpeedTestError error, String message) {
-                if (done.compareAndSet(false, true)) {
-                    result.error = describe(error, message);
-                    latch.countDown();
-                }
-            }
-
-            @Override
-            public void onProgress(float percent, SpeedTestReport report) {
-                postProgress(listener, phase, percent, toMbps(report));
-            }
-        });
+        for (int i = 0; i < streams; i++) {
+            pool.execute(() -> runStream(phase, bytes, running, anyData, calls));
+        }
 
         try {
-            if (phase == Phase.DOWNLOAD) {
-                socket.startFixedDownload(DOWNLOAD_URL, DOWNLOAD_DURATION_MS);
-            } else {
-                socket.startFixedUpload(UPLOAD_URL, UPLOAD_SIZE_BYTES, UPLOAD_DURATION_MS);
-            }
-            if (!latch.await(PHASE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                socket.forceStopTask();
-                if (done.compareAndSet(false, true)) {
-                    result.error = "Test timed out";
+            final long start = System.nanoTime();
+            long windowStartBytes = 0;
+            long windowStartNanos = 0;
+            boolean windowOpen = false;
+            double mbps = 0;
+
+            while (true) {
+                sleep(SAMPLE_MS);
+                long now = System.nanoTime();
+                long elapsedMs = (now - start) / 1_000_000L;
+
+                if (elapsedMs >= WARMUP_MS && !windowOpen) {
+                    windowStartBytes = bytes.get();
+                    windowStartNanos = now;
+                    windowOpen = true;
+                }
+
+                if (windowOpen) {
+                    double seconds = (now - windowStartNanos) / 1e9;
+                    if (seconds > 0) {
+                        mbps = (bytes.get() - windowStartBytes) * 8.0 / seconds / 1_000_000.0;
+                    }
+                }
+                float percent = Math.min(100f, elapsedMs * 100f / (WARMUP_MS + MEASURE_MS));
+                emitProgress(listener, phase, percent, mbps);
+
+                if (elapsedMs >= WARMUP_MS + MEASURE_MS) {
+                    double seconds = (now - windowStartNanos) / 1e9;
+                    mbps = seconds > 0
+                            ? (bytes.get() - windowStartBytes) * 8.0 / seconds / 1_000_000.0
+                            : 0;
+                    break;
                 }
             }
+
+            running.set(false);
+            for (Call call : calls) {
+                call.cancel();
+            }
+            pool.shutdownNow();
+
+            if (!anyData.get()) {
+                throw new MeasureException(phase, "Could not reach the test server");
+            }
+            return round2(mbps);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            result.error = "Test interrupted";
-        } finally {
-            socket.closeSocket();
+            running.set(false);
+            pool.shutdownNow();
+            throw new MeasureException(phase, "Test interrupted");
         }
-        return result;
     }
 
-    private void postProgress(final Listener listener, final Phase phase,
+    private void runStream(Phase phase, AtomicLong bytes, AtomicBoolean running,
+                           AtomicBoolean anyData, List<Call> calls) {
+        // Each request transfers a bounded chunk; loop so the stream stays busy
+        // for the whole window regardless of how fast a single chunk finishes.
+        while (running.get()) {
+            try {
+                Request request = phase == Phase.DOWNLOAD
+                        ? new Request.Builder().url(DOWNLOAD_URL).build()
+                        : new Request.Builder().url(UPLOAD_URL)
+                        .post(uploadBody(bytes, running, anyData)).build();
+
+                Call call = client.newCall(request);
+                synchronized (calls) {
+                    calls.add(call);
+                }
+
+                try (Response response = call.execute()) {
+                    if (phase == Phase.DOWNLOAD) {
+                        ResponseBody body = response.body();
+                        if (body == null) {
+                            continue;
+                        }
+                        InputStream in = body.byteStream();
+                        byte[] buf = new byte[BUFFER];
+                        int n;
+                        while (running.get() && (n = in.read(buf)) > 0) {
+                            bytes.addAndGet(n);
+                            anyData.set(true);
+                        }
+                    }
+                    // For upload the counting happens inside uploadBody while writing.
+                }
+            } catch (Exception ignored) {
+                // Individual request failures are tolerated; a total failure is
+                // caught by the anyData check after the window closes. Pause
+                // briefly so a persistent error doesn't spin the CPU.
+                if (!running.get()) {
+                    return;
+                }
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
+    private RequestBody uploadBody(final AtomicLong bytes, final AtomicBoolean running,
+                                   final AtomicBoolean anyData) {
+        return new RequestBody() {
+            @Override
+            public MediaType contentType() {
+                return MediaType.parse("application/octet-stream");
+            }
+
+            @Override
+            public long contentLength() {
+                return -1; // chunked: we stream until the window closes, then stop cleanly
+            }
+
+            @Override
+            public void writeTo(@NonNull BufferedSink sink) throws IOException {
+                // Bounded per request so the stream loop can start a fresh POST
+                // (and survive any server-side upload cap) instead of one endless body.
+                byte[] buf = new byte[BUFFER];
+                long sent = 0;
+                while (running.get() && sent < CHUNK_BYTES) {
+                    sink.write(buf, 0, buf.length);
+                    sink.flush();
+                    bytes.addAndGet(buf.length);
+                    anyData.set(true);
+                    sent += buf.length;
+                }
+            }
+        };
+    }
+
+    private void emitProgress(final Listener listener, final Phase phase,
                               final float percent, final double mbps) {
         mainHandler.post(() -> listener.onProgress(phase, percent, mbps));
     }
 
-    private void postError(final Listener listener, final Phase phase, final String message) {
-        mainHandler.post(() -> listener.onError(phase, message));
-    }
-
-    /** Cancels any in-flight work; call from the owning component's onDestroy. */
     public void shutdown() {
-        executor.shutdownNow();
+        orchestrator.shutdownNow();
     }
 
-    private static double toMbps(SpeedTestReport report) {
-        // getTransferRateBit() is bits/s as BigDecimal; convert to Mbit/s.
-        return report.getTransferRateBit()
-                .divide(BigDecimal.valueOf(1_000_000L), 2, RoundingMode.HALF_UP)
-                .doubleValue();
+    private static void sleep(long ms) throws InterruptedException {
+        Thread.sleep(ms);
     }
 
-    private static String describe(SpeedTestError error, String message) {
-        if (message != null && !message.isEmpty()) {
-            return message;
+    private static double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    /** Signals a fatal error for a phase, carrying which phase failed. */
+    private static final class MeasureException extends Exception {
+        final Phase phase;
+
+        MeasureException(Phase phase, String message) {
+            super(message);
+            this.phase = phase;
         }
-        return error != null ? error.name() : "Unknown error";
     }
 }

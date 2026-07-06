@@ -8,8 +8,8 @@ android {
         applicationId "com.example.networkanalyzer"
         minSdk 21
         targetSdk 31
-        versionCode 3
-        versionName "2.0.1"
+        versionCode 4
+        versionName "2.0.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -40,7 +40,6 @@ dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
     implementation 'androidx.navigation:navigation-fragment:2.3.5'
     implementation 'androidx.navigation:navigation-ui:2.3.5'
-    implementation 'fr.bmartel:jspeedtest:1.32.1'
     testImplementation("com.squareup.okhttp3:mockwebserver:4.9.0")
     testImplementation 'junit:junit:4.+'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'

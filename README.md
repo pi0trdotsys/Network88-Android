@@ -19,11 +19,11 @@ each result as JSON on the device.</p>
 <h3>🧠 How the speed test works</h3>
 
 <p>Download and upload run <b>sequentially</b> (never at the same time) so they don't compete for the
-same link and skew each other's numbers. Each phase runs on its own socket, and the next phase only
-starts once the previous one has actually completed — coordinated with a <code>CountDownLatch</code>
-instead of a fixed timer. The reported rate is the final figure from the completion callback, not a
-mid-test snapshot. Speed tests are powered by
-<a href="https://github.com/bertrandmartel/speed-test-lib">jSpeedtest</a>.</p>
+same link. Each phase opens <b>several parallel connections</b> to Cloudflare's global CDN
+(<code>speed.cloudflare.com</code>) and sums the bytes transferred — a single connection to a distant
+server can't saturate a fast link, which is the classic reason a naïve test under-reports high-speed
+connections. The rate is measured over a steady-state window <b>after discarding an initial warm-up</b>
+(TCP slow-start), so the ramp-up doesn't drag the number down. Built on <a href="https://square.github.io/okhttp/">OkHttp</a>.</p>
 
 <h3>🗂️ Measurement history (JSON)</h3>
 
@@ -50,6 +50,7 @@ upload rates, ping, IP address and subnet mask:</p>
   <li>Java, minSdk 21 / targetSdk 31</li>
   <li>Material Components (dark theme, cards, circular progress)</li>
   <li>AndroidX (AppCompat, ConstraintLayout, RecyclerView), View Binding</li>
+  <li>OkHttp for the multi-connection speed test</li>
   <li><code>org.json</code> for local history persistence</li>
 </ul>
 

@@ -217,7 +217,12 @@ public class MainActivity extends AppCompatActivity {
             process.waitFor();
             Matcher matcher = Pattern.compile("time[=<]([0-9.]+)").matcher(output);
             if (matcher.find()) {
-                return Double.parseDouble(matcher.group(1));
+                double ms = Double.parseDouble(matcher.group(1));
+                // Guard against bogus values (e.g. the emulator's broken clock
+                // reports absurd RTTs); anything out of a sane range is "unknown".
+                if (ms >= 0 && ms < 60_000) {
+                    return ms;
+                }
             }
         } catch (IOException | InterruptedException | NumberFormatException e) {
             if (e instanceof InterruptedException) {
