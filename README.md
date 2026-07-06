@@ -12,6 +12,7 @@ each result as JSON on the device.</p>
   <li>📡 Send a <b>ping</b> and read the round-trip time in ms</li>
   <li>🌐 Show your <b>IP address</b> and <b>subnet mask</b></li>
   <li>🕘 <b>Measurement history</b> persisted locally as JSON, viewable in-app</li>
+  <li>↺ Restores your <b>last result</b> on launch so the screen is never empty</li>
   <li>🔔 Notification with the result when a test completes</li>
 </ul>
 
@@ -61,11 +62,10 @@ upload rates, ping, IP address and subnet mask:</p>
 
 <h3>📸 Screenshots</h3>
 <p>
-  <img src="https://user-images.githubusercontent.com/92042731/230795094-5b5008d4-585a-4455-85f9-dc25acddcb24.jpg" width="200px">
-  <img src="https://user-images.githubusercontent.com/92042731/230795096-3538a24f-462e-409a-9021-c47479b57097.jpg" width="200px">
-  <img src="https://user-images.githubusercontent.com/92042731/230795095-d6f45a2b-81a5-4568-816e-843488554347.jpg" width="200px">
+  <img src="docs/screenshots/home.png" width="270px" alt="Home screen showing the latest download, upload, ping, IP and subnet results">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/history.png" width="270px" alt="Measurement history screen listing previous speed tests">
 </p>
-<p><i>Screenshots above show the previous UI — the app now uses a refreshed dark Material design.</i></p>
 
 <h2>👇 APK Download</h2>
 <p>Download the latest APK from the <a href="https://github.com/pi0trdotsys/Network88-Android/releases">Release page</a> (requires Android 7.0 or above).</p>

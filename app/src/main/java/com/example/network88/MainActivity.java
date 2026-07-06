@@ -24,6 +24,9 @@ import com.example.network88.speedtest.SpeedTestManager;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.DateFormat;
+import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,9 +58,40 @@ public class MainActivity extends AppCompatActivity {
         binding.historyButton.setOnClickListener(v ->
                 startActivity(new Intent(this, HistoryActivity.class)));
 
+        restoreLastResult();
+
         if (!isOnline()) {
             Toast.makeText(this, R.string.error_offline, Toast.LENGTH_LONG).show();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // History may have been cleared while we were away; keep the screen in sync.
+        restoreLastResult();
+    }
+
+    /** Shows the most recent stored measurement so the screen isn't empty on launch. */
+    private void restoreLastResult() {
+        List<Measurement> history = historyRepository.load();
+        if (history.isEmpty()) {
+            return;
+        }
+        Measurement last = history.get(0);
+        binding.textDownloadValue.setText(formatSpeed(last.getDownloadMbps()));
+        binding.textUploadValue.setText(formatSpeed(last.getUploadMbps()));
+        binding.textPingValue.setText(last.getPingMs() >= 0
+                ? String.format(Locale.US, "%.0f %s", last.getPingMs(), getString(R.string.unit_ms))
+                : getString(R.string.value_placeholder));
+        binding.textIpValue.setText(last.getIpAddress().isEmpty()
+                ? getString(R.string.value_placeholder) : last.getIpAddress());
+        binding.textMaskValue.setText(last.getSubnetMask().isEmpty()
+                ? getString(R.string.value_placeholder) : last.getSubnetMask());
+        binding.textStatus.setText(getString(R.string.status_last_result,
+                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                        .format(new Date(last.getTimestamp()))));
+        binding.runButton.setText(R.string.run_test_again);
     }
 
     private void startTest() {
