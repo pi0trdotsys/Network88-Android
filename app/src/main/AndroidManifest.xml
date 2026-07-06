@@ -27,6 +27,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.example.network88.HistoryActivity"
+            android:exported="false"
+            android:parentActivityName="com.example.network88.MainActivity" />
+
     </application>
 
 </manifest>

@@ -1,313 +1,248 @@
 package com.example.network88;
 
-
-import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
-import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.text.format.Formatter;
-import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
-import androidx.navigation.ui.AppBarConfiguration;
-import androidx.navigation.ui.NavigationUI;
+import androidx.core.app.NotificationCompat;
 
+import com.example.network88.data.HistoryRepository;
+import com.example.network88.data.Measurement;
 import com.example.network88.databinding.ActivityMainBinding;
+import com.example.network88.speedtest.SpeedTestManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-
-import fr.bmartel.speedtest.SpeedTestReport;
-import fr.bmartel.speedtest.SpeedTestSocket;
-import fr.bmartel.speedtest.inter.ISpeedTestListener;
-import fr.bmartel.speedtest.model.SpeedTestError;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity {
-    private AppBarConfiguration appBarConfiguration;
+
+    private static final String CHANNEL_ID = "speed_test_results";
+    private static final int NOTIFICATION_ID = 1001;
+    private static final String PING_HOST = "google.com";
+
     private ActivityMainBinding binding;
-    public String mbsDownload;
-    public String mbsUpload;
-
-    int notificationId;
-    NotificationManager notificationManager;
-    Notification.Builder builder;
-
-
-    @RequiresApi(api = Build.VERSION_CODES.M)
+    private SpeedTestManager speedTestManager;
+    private HistoryRepository historyRepository;
+    private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) { //On startup.
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN); //Fullscreen mode (without toolbar on the top)
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        TextView textViewDownload = findViewById(R.id.textView_Download);
-        TextView textViewUpload = findViewById(R.id.textView_Upload);
-        TextView textViewIP = findViewById(R.id.textViewIP);
-        TextView textViewMask = findViewById(R.id.textViewMask);
-        TextView textViewPing = findViewById(R.id.textViewPING);
+        speedTestManager = new SpeedTestManager();
+        historyRepository = new HistoryRepository(this);
+        createNotificationChannel();
 
-        ProgressBar progressBar = (ProgressBar) findViewById(R.id.progressBar);
+        binding.runButton.setOnClickListener(v -> startTest());
+        binding.historyButton.setOnClickListener(v ->
+                startActivity(new Intent(this, HistoryActivity.class)));
 
-        Button runButton = (Button) findViewById(R.id.runButton);
+        if (!isOnline()) {
+            Toast.makeText(this, R.string.error_offline, Toast.LENGTH_LONG).show();
+        }
+    }
 
-        runButton.setOnClickListener(new View.OnClickListener() {
+    private void startTest() {
+        if (!isOnline()) {
+            Toast.makeText(this, R.string.error_offline, Toast.LENGTH_LONG).show();
+            return;
+        }
+        setTestingUi(true);
+        binding.textStatus.setText(R.string.status_download);
+
+        speedTestManager.start(new SpeedTestManager.Listener() {
             @Override
-            public void onClick(View v) {
-                progressBar.setVisibility(View.VISIBLE);
-                Button runTestButton = (Button) v;
-                new Thread(new Runnable() {
-                    public void run() {
-                        getDownloadSpeed();
-                        getUploadspeed();
+            public void onProgress(SpeedTestManager.Phase phase, float percent, double mbps) {
+                if (phase == SpeedTestManager.Phase.DOWNLOAD) {
+                    binding.textStatus.setText(R.string.status_download);
+                    binding.textDownloadValue.setText(formatSpeed(mbps));
+                } else {
+                    binding.textStatus.setText(R.string.status_upload);
+                    binding.textUploadValue.setText(formatSpeed(mbps));
+                }
+            }
 
-                        SystemClock.sleep(3500);
+            @Override
+            public void onFinished(double downloadMbps, double uploadMbps) {
+                binding.textDownloadValue.setText(formatSpeed(downloadMbps));
+                binding.textUploadValue.setText(formatSpeed(uploadMbps));
+                finishTest(downloadMbps, uploadMbps);
+            }
 
-                        runTestButton.post(new Runnable() {
-                            public void run() {
-                                runTestButton.setText("Press to run your test again");
-
-                                textViewDownload.setText("Download: \n\n" + "   " + mbsDownload);
-                                textViewUpload.setText("Upload: \n\n" + "   " + mbsUpload);
-
-                                textViewIP.setText("IP Address:\n" + getIpAddress());
-                                textViewMask.setText("Subnet mask:\n" + getSubnetMask());
-                                textViewPing.setText("Pinging google.com\n= " + ping("google.com"));
-
-                                progressBar.setVisibility(View.INVISIBLE);
-
-                                sendNotification();
-
-                            }
-                        });
-                    }
-                }).start();
+            @Override
+            public void onError(SpeedTestManager.Phase phase, String message) {
+                setTestingUi(false);
+                binding.textStatus.setText(R.string.status_idle);
+                Toast.makeText(MainActivity.this,
+                        getString(R.string.error_test, message), Toast.LENGTH_LONG).show();
             }
         });
-
-                if (isOnline()) {
-                    Toast.makeText(MainActivity.this.getApplicationContext(),
-                            "Connection found.", Toast.LENGTH_SHORT).show();
-
-                } else {
-                    Toast.makeText(MainActivity.this.getApplicationContext(),
-                            "No connection found. Connect your device and try again later.", Toast.LENGTH_LONG).show();
-                }
-            }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
+    /** Gathers ping / IP / mask off the UI thread, then updates UI, saves history and notifies. */
+    private void finishTest(double downloadMbps, double uploadMbps) {
+        final String ip = getIpAddress();
+        final String mask = getSubnetMask();
+        backgroundExecutor.execute(() -> {
+            final double pingMs = ping(PING_HOST);
+            final long timestamp = System.currentTimeMillis();
+            final Measurement measurement = new Measurement(
+                    timestamp, downloadMbps, uploadMbps, pingMs, ip, mask);
+            historyRepository.add(measurement);
 
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    public boolean onSupportNavigateUp() {
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
-        return NavigationUI.navigateUp(navController, appBarConfiguration)
-                || super.onSupportNavigateUp();
-    }
-
-    public class SpeedTestTaskDownload extends AsyncTask<Void, Void, String> {
-
-        @Override
-        protected String doInBackground(Void... params) {
-
-            SpeedTestSocket speedTestSocket = new SpeedTestSocket();
-
-            // add a listener to wait for speedtest completion and progress
-            speedTestSocket.addSpeedTestListener(new ISpeedTestListener() {
-
-                @Override
-                public void onCompletion(SpeedTestReport report) {
-                    // called when download/upload is finished
-                    BigDecimal bit = report.getTransferRateBit();
-
-                    double Mbit = Double.parseDouble(String.valueOf(bit)) / 1000000;
-                    double MbitFinalCompleted = BigDecimal.valueOf(Mbit).setScale(2, RoundingMode.HALF_UP).doubleValue();
-
-                    Log.v("downloadCompleted", "completed rate in Mbit/s: " + MbitFinalCompleted);
-                }
-
-                @Override
-                public void onError(SpeedTestError speedTestError, String errorMessage) {
-                    // called when a download/upload error occur
-                }
-
-                @Override
-                public void onProgress(float percent, SpeedTestReport report) {
-                    // called to notify download/upload progress
-                    BigDecimal bit = report.getTransferRateBit();
-
-                    double Mbit = Double.parseDouble(String.valueOf(bit)) / 1000000;
-                    double MbitFinalProgress = BigDecimal.valueOf(Mbit).setScale(2, RoundingMode.HALF_UP).doubleValue();
-
-                    Log.v("progressDownload", "progress: " + percent + "%");
-                    Log.v("currentSpeedDownload", "rate in Mbit/s: " + MbitFinalProgress);
-                    mbsDownload = String.valueOf(MbitFinalProgress);
-                }
-
+            runOnUiThread(() -> {
+                binding.textPingValue.setText(pingMs >= 0
+                        ? String.format(Locale.US, "%.0f %s", pingMs, getString(R.string.unit_ms))
+                        : getString(R.string.value_placeholder));
+                binding.textIpValue.setText(ip.isEmpty() ? getString(R.string.value_placeholder) : ip);
+                binding.textMaskValue.setText(mask.isEmpty() ? getString(R.string.value_placeholder) : mask);
+                binding.textStatus.setText(R.string.status_done);
+                binding.runButton.setText(R.string.run_test_again);
+                setTestingUi(false);
+                sendNotification(downloadMbps, uploadMbps);
             });
-
-            speedTestSocket.startFixedDownload("https://speed.hetzner.de/100MB.bin", 5000);
-
-            return null;
-        }
+        });
     }
-    public class SpeedTestTaskUpload extends AsyncTask<Void, Void, String> {
 
-        @Override
-        protected String doInBackground(Void... params) {
+    private void setTestingUi(boolean testing) {
+        binding.progressBar.setVisibility(testing ? TextView.VISIBLE : TextView.INVISIBLE);
+        binding.runButton.setEnabled(!testing);
+    }
 
-            SpeedTestSocket speedTestSocket = new SpeedTestSocket();
-
-            // add a listener to wait for speedtest completion and progress
-            speedTestSocket.addSpeedTestListener(new ISpeedTestListener() {
-
-                @Override
-                public void onCompletion(SpeedTestReport report) {
-                    // called when download/upload is finished
-                    BigDecimal bit = report.getTransferRateBit();
-
-                    double Mbit = Double.parseDouble(String.valueOf(bit)) / 1000000;
-                    double MbitFinalCompleted = BigDecimal.valueOf(Mbit).setScale(2, RoundingMode.HALF_UP).doubleValue();
-
-                    Log.v("uploadCompleted", "completed rate in Mbit/s: " + MbitFinalCompleted);
-                }
-
-                @Override
-                public void onError(SpeedTestError speedTestError, String errorMessage) {
-                    // called when a download/upload error occur
-                }
-
-                @Override
-                public void onProgress(float percent, SpeedTestReport report) {
-                    // called to notify download/upload progress
-                    BigDecimal bit = report.getTransferRateBit();
-
-                    double Mbit = Double.parseDouble(String.valueOf(bit)) / 1000000;
-                    double MbitFinalProgress = BigDecimal.valueOf(Mbit).setScale(2, RoundingMode.HALF_UP).doubleValue();
-
-                    Log.v("progressUpload", "progress: " + percent + "%");
-                    Log.v("currentSpeedUpload", "rate in Mbit/s: " + MbitFinalProgress);
-                    mbsUpload = String.valueOf(MbitFinalProgress);
-                }
-            });
-
-            speedTestSocket.startFixedUpload("http://speedtest.tele2.net/upload.php", 10000000, 5000);
-
-            return null;
-        }
+    private String formatSpeed(double mbps) {
+        return String.format(Locale.US, "%.1f", mbps);
     }
 
     public boolean isOnline() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(this.CONNECTIVITY_SERVICE);
-        NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-        return (networkInfo != null && networkInfo.isConnected());
-    }
-
-    public void getDownloadSpeed() {
-
-        new SpeedTestTaskDownload().execute();
-    }
-
-    public void getUploadspeed(){
-
-        new SpeedTestTaskUpload().execute();
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (cm == null) {
+            return false;
+        }
+        NetworkInfo networkInfo = cm.getActiveNetworkInfo();
+        return networkInfo != null && networkInfo.isConnected();
     }
 
     public String getIpAddress() {
-        WifiManager wifiMgr = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-        String ipAddress = Formatter.formatIpAddress(wifiMgr.getConnectionInfo().getIpAddress());
-        return ipAddress;
+        WifiManager wifiMgr = (WifiManager)
+                getApplicationContext().getSystemService(WIFI_SERVICE);
+        if (wifiMgr == null || wifiMgr.getConnectionInfo() == null) {
+            return "";
+        }
+        int ip = wifiMgr.getConnectionInfo().getIpAddress();
+        return ip == 0 ? "" : Formatter.formatIpAddress(ip);
     }
 
     public String getSubnetMask() {
-        WifiManager wifiMgr = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        WifiManager wifiMgr = (WifiManager)
+                getApplicationContext().getSystemService(WIFI_SERVICE);
+        if (wifiMgr == null) {
+            return "";
+        }
         DhcpInfo dhcp = wifiMgr.getDhcpInfo();
-        String mask = intToIP(dhcp.netmask);
-        return mask;
-    }
-
-    public String ping(String url) {
-        String str = "";
-        try {
-            Process process = Runtime.getRuntime().exec(
-                    "/system/bin/ping -c 1 " + url); //A library in Android, where PING command can be found.
-            new InputStreamReader(process.getInputStream());
-            BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    process.getInputStream()));
-            int i;
-            char[] buffer = new char[4096];
-            StringBuffer output = new StringBuffer();
-            while ((i = reader.read(buffer)) > 0)
-                output.append(buffer, 95, 146);
-            reader.close();
-            str = output.toString();
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (dhcp == null || dhcp.netmask == 0) {
+            return "";
         }
-        return str;
+        return intToIp(dhcp.netmask);
     }
 
-    private static String intToIP(int ipAddress) {
-        return String.format("%d.%d.%d.%d", (ipAddress & 0xff), (ipAddress >> 8 & 0xff), (ipAddress >> 16 & 0xff), (ipAddress >> 24 & 0xff));
-    } //Bitwise AND operation, Your subnet mask is ip address 192.168.232.2 gateway..., 0xff = 11111111...
-
-    public void sendNotification() {
-        builder =
-                new Notification.Builder(MainActivity.this)
-                        .setSmallIcon(R.drawable.ic_notification)
-                        .setAutoCancel(true)
-                        .setContentTitle("Done!")
-                        .setContentText("Download speed: " + mbsDownload + " Mb/s" + "   " + "Upload speed: " + mbsUpload + " Mb/s");
-
-        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(notificationId, builder.build());
-
-    }
-
-    public static void wait(int ms) //One may use it to delay next actions
-    {
+    /**
+     * Pings {@code host} once and returns the round-trip time in milliseconds,
+     * or -1 if it could not be determined. Parses the {@code time=<x> ms} token
+     * from the ping output instead of relying on fixed buffer offsets.
+     */
+    public double ping(String host) {
+        Process process = null;
         try {
-            Thread.sleep(ms);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
+            process = Runtime.getRuntime().exec("/system/bin/ping -c 1 -W 5 " + host);
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append('\n');
+                }
+            }
+            process.waitFor();
+            Matcher matcher = Pattern.compile("time[=<]([0-9.]+)").matcher(output);
+            if (matcher.find()) {
+                return Double.parseDouble(matcher.group(1));
+            }
+        } catch (IOException | InterruptedException | NumberFormatException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+        } finally {
+            if (process != null) {
+                process.destroy();
+            }
         }
+        return -1;
+    }
+
+    private static String intToIp(int address) {
+        // Bitwise mask each octet; DHCP stores the address little-endian.
+        return String.format(Locale.US, "%d.%d.%d.%d",
+                (address & 0xff),
+                (address >> 8 & 0xff),
+                (address >> 16 & 0xff),
+                (address >> 24 & 0xff));
+    }
+
+    private void createNotificationChannel() {
+        NotificationManager manager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) {
+            return;
+        }
+        NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.notif_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT);
+        channel.setDescription(getString(R.string.notif_channel_desc));
+        manager.createNotificationChannel(channel);
+    }
+
+    private void sendNotification(double downloadMbps, double uploadMbps) {
+        NotificationManager manager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) {
+            return;
+        }
+        String text = String.format(Locale.US, "Download: %.1f Mbps  •  Upload: %.1f Mbps",
+                downloadMbps, uploadMbps);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setAutoCancel(true)
+                .setContentTitle(getString(R.string.notif_title))
+                .setContentText(text);
+        manager.notify(NOTIFICATION_ID, builder.build());
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (speedTestManager != null) {
+            speedTestManager.shutdown();
+        }
+        backgroundExecutor.shutdownNow();
+        binding = null;
     }
 }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Legacy names kept so old references still resolve -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
@@ -8,4 +9,17 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="grey90">#363A3A</color>
+
+    <!-- Network88 refreshed dark palette -->
+    <color name="bg_dark">#0E1526</color>
+    <color name="surface">#1A2338</color>
+    <color name="surface_elevated">#222E49</color>
+    <color name="stroke">#2E3A57</color>
+
+    <color name="accent_download">#4F8CFF</color>
+    <color name="accent_upload">#33D69F</color>
+    <color name="accent_ping">#FFB74D</color>
+
+    <color name="text_primary">#F2F5FB</color>
+    <color name="text_secondary">#9AA5BE</color>
 </resources>

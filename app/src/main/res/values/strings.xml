@@ -9,6 +9,40 @@
 
     <string name="hello_first_fragment">Hello first fragment</string>
     <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
-    <string name="run_test">Run Test</string>
+    <string name="run_test">Run speed test</string>
+    <string name="run_test_again">Run test again</string>
     <string name="test">TEST</string>
+
+    <!-- Home screen -->
+    <string name="title_home">Network88</string>
+    <string name="subtitle_home">Test your connection speed</string>
+    <string name="label_download">Download</string>
+    <string name="label_upload">Upload</string>
+    <string name="unit_mbps">Mbps</string>
+    <string name="unit_ms">ms</string>
+    <string name="value_placeholder">—</string>
+    <string name="label_ip">IP address</string>
+    <string name="label_mask">Subnet mask</string>
+    <string name="label_ping">Ping (google.com)</string>
+    <string name="status_idle">Ready to test</string>
+    <string name="status_download">Measuring download…</string>
+    <string name="status_upload">Measuring upload…</string>
+    <string name="status_done">Test complete</string>
+    <string name="history">History</string>
+    <string name="view_history">View history</string>
+
+    <!-- History screen -->
+    <string name="title_history">Measurement history</string>
+    <string name="history_empty">No measurements yet.\nRun a test to see it here.</string>
+    <string name="clear_history">Clear history</string>
+    <string name="history_cleared">History cleared</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_name">Speed test results</string>
+    <string name="notif_channel_desc">Shows the result of a completed speed test</string>
+    <string name="notif_title">Speed test complete</string>
+
+    <!-- Errors -->
+    <string name="error_offline">No connection found. Connect your device and try again.</string>
+    <string name="error_test">Test failed: %1$s</string>
 </resources>
