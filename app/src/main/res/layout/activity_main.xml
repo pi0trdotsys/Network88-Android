@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_dark"
+    android:background="@drawable/bg_home"
     android:fillViewport="true"
     tools:context="com.example.network88.MainActivity">
 
@@ -12,33 +12,72 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="20dp"
-        android:paddingTop="32dp"
+        android:paddingHorizontal="22dp"
+        android:paddingTop="28dp"
         android:paddingBottom="28dp">
 
-        <TextView
+        <!-- Brand header -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/title_home"
-            android:textColor="@color/text_primary"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:contentDescription="@string/app_name"
+                android:src="@mipmap/ic_launcher_foreground" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_home"
+                    android:textColor="@color/text_primary"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.01" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tagline"
+                    android:textColor="@color/accent_download"
+                    android:textSize="13sp"
+                    android:letterSpacing="0.02" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Hero gauge -->
+        <com.example.network88.SpeedGaugeView
+            android:id="@+id/speedGauge"
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:layout_marginTop="18dp" />
 
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/textStatus"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/subtitle_home"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:text="@string/status_idle"
             android:textColor="@color/text_secondary"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
-        <!-- Download / Upload result cards -->
+        <!-- Download / Upload chips -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:orientation="horizontal"
-            android:baselineAligned="false">
+            android:layout_marginTop="18dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
@@ -46,7 +85,7 @@
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
                 app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="20dp"
+                app:cardCornerRadius="18dp"
                 app:cardElevation="0dp"
                 app:strokeColor="@color/stroke"
                 app:strokeWidth="1dp">
@@ -55,32 +94,36 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="16dp">
 
-                    <ImageView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/bg_badge_download"
-                        android:padding="10dp"
-                        android:contentDescription="@string/label_download"
-                        app:srcCompat="@drawable/ic_download" />
-
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:text="@string/label_download"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:background="@drawable/dot_download" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:text="@string/label_download"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/textDownloadValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginTop="8dp"
                         android:text="@string/value_placeholder"
                         android:textColor="@color/text_primary"
-                        android:textSize="30sp"
+                        android:textSize="24sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -88,7 +131,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/unit_mbps"
                         android:textColor="@color/accent_download"
-                        android:textSize="13sp" />
+                        android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -98,7 +141,7 @@
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="20dp"
+                app:cardCornerRadius="18dp"
                 app:cardElevation="0dp"
                 app:strokeColor="@color/stroke"
                 app:strokeWidth="1dp">
@@ -107,32 +150,36 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="16dp">
 
-                    <ImageView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/bg_badge_upload"
-                        android:padding="10dp"
-                        android:contentDescription="@string/label_upload"
-                        app:srcCompat="@drawable/ic_upload" />
-
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:text="@string/label_upload"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:background="@drawable/dot_upload" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:text="@string/label_upload"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/textUploadValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginTop="8dp"
                         android:text="@string/value_placeholder"
                         android:textColor="@color/text_primary"
-                        android:textSize="30sp"
+                        android:textSize="24sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -140,46 +187,18 @@
                         android:layout_height="wrap_content"
                         android:text="@string/unit_mbps"
                         android:textColor="@color/accent_upload"
-                        android:textSize="13sp" />
+                        android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
-        <!-- Status + progress -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.progressindicator.CircularProgressIndicator
-                android:id="@+id/progressBar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:indeterminate="true"
-                android:visibility="invisible"
-                app:indicatorColor="@color/accent_download"
-                app:indicatorSize="22dp"
-                app:trackThickness="3dp" />
-
-            <TextView
-                android:id="@+id/textStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/status_idle"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp" />
-        </LinearLayout>
-
-        <!-- Network details card -->
+        <!-- Network details -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="12dp"
             app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="20dp"
+            app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/stroke"
             app:strokeWidth="1dp">
@@ -188,7 +207,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -201,7 +220,7 @@
                         android:layout_weight="1"
                         android:text="@string/label_ping"
                         android:textColor="@color/text_secondary"
-                        android:textSize="15sp" />
+                        android:textSize="14sp" />
 
                     <TextView
                         android:id="@+id/textPingValue"
@@ -209,14 +228,14 @@
                         android:layout_height="wrap_content"
                         android:text="@string/value_placeholder"
                         android:textColor="@color/text_primary"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:layout_marginVertical="14dp"
+                    android:layout_marginVertical="13dp"
                     android:background="@color/stroke" />
 
                 <LinearLayout
@@ -230,7 +249,7 @@
                         android:layout_weight="1"
                         android:text="@string/label_ip"
                         android:textColor="@color/text_secondary"
-                        android:textSize="15sp" />
+                        android:textSize="14sp" />
 
                     <TextView
                         android:id="@+id/textIpValue"
@@ -238,14 +257,14 @@
                         android:layout_height="wrap_content"
                         android:text="@string/value_placeholder"
                         android:textColor="@color/text_primary"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:layout_marginVertical="14dp"
+                    android:layout_marginVertical="13dp"
                     android:background="@color/stroke" />
 
                 <LinearLayout
@@ -259,7 +278,7 @@
                         android:layout_weight="1"
                         android:text="@string/label_mask"
                         android:textColor="@color/text_secondary"
-                        android:textSize="15sp" />
+                        android:textSize="14sp" />
 
                     <TextView
                         android:id="@+id/textMaskValue"
@@ -267,38 +286,37 @@
                         android:layout_height="wrap_content"
                         android:text="@string/value_placeholder"
                         android:textColor="@color/text_primary"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/runButton"
             android:layout_width="match_parent"
             android:layout_height="58dp"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/bg_button_primary"
+            android:stateListAnimator="@null"
             android:text="@string/run_test"
             android:textAllCaps="false"
             android:textColor="@color/white"
             android:textSize="17sp"
-            app:backgroundTint="@color/accent_download"
-            app:cornerRadius="16dp" />
+            android:textStyle="bold" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/historyButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="12dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:text="@string/view_history"
             android:textAllCaps="false"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            app:cornerRadius="16dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
             app:icon="@drawable/ic_history"
             app:iconGravity="textStart"
-            app:iconTint="@color/text_primary"
-            app:strokeColor="@color/stroke" />
+            app:iconTint="@color/text_secondary" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

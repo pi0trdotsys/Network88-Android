@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deep radial-glow background for the adaptive icon. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:centerX="0.42"
+        android:centerY="0.40"
+        android:gradientRadius="75%p"
+        android:startColor="#1E2F52"
+        android:endColor="#080C18" />
+</shape>

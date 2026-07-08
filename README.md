@@ -1,8 +1,12 @@
-<h2>📱 Network88 — Android Network Speed Test (Java)</h2>
+<p align="center">
+  <img src="docs/screenshots/app_icon.png" width="112" alt="Network88 app icon">
+</p>
+<h2 align="center">Network88 — Android Network Speed Test</h2>
+<p align="center"><i>Speed test, reimagined.</i></p>
 
-<p>Network88 is a lightweight network utility app that measures your connection quality and keeps a
-local history of every test. It runs a proper sequential speed test, reports live progress, and stores
-each result as JSON on the device.</p>
+<p>Network88 is a network utility app that measures your connection quality and keeps a local history of
+every test. It runs a proper multi-connection speed test with a live animated gauge, and stores each
+result as JSON on the device.</p>
 
 <h3>✨ Features</h3>
 
@@ -11,9 +15,10 @@ each result as JSON on the device.</p>
   <li>📤 Measure <b>upload speed</b> (Mbps)</li>
   <li>📡 Send a <b>ping</b> and read the round-trip time in ms</li>
   <li>🌐 Show your <b>IP address</b> and <b>subnet mask</b></li>
+  <li>⏱️ A live, animated <b>speed gauge</b> that fills as the test runs</li>
   <li>🕘 <b>Measurement history</b> persisted locally as JSON, viewable in-app</li>
   <li>↺ Restores your <b>last result</b> on launch so the screen is never empty</li>
-  <li>🔔 Notification with the result when a test completes</li>
+  <li>🔔 Result notification with a <b>connection-quality verdict</b> and one-tap reopen</li>
 </ul>
 
 <h3>🧠 How the speed test works</h3>
@@ -63,9 +68,9 @@ upload rates, ping, IP address and subnet mask:</p>
 
 <h3>📸 Screenshots</h3>
 <p>
-  <img src="docs/screenshots/home.png" width="240px" alt="Home screen showing the latest download, upload, ping, IP and subnet results">
+  <img src="docs/screenshots/home.png" width="240px" alt="Home screen with the animated speed gauge and download, upload, ping, IP and subnet results">
   &nbsp;
-  <img src="docs/screenshots/measuring.png" width="240px" alt="Speed test in progress with live download speed and a progress indicator">
+  <img src="docs/screenshots/notification.png" width="240px" alt="Result notification with a connection-quality verdict and the measured speeds">
   &nbsp;
   <img src="docs/screenshots/history.png" width="240px" alt="Measurement history screen listing previous speed tests">
 </p>

@@ -2,6 +2,7 @@ package com.example.network88;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
@@ -10,11 +11,11 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.text.format.Formatter;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.network88.data.HistoryRepository;
 import com.example.network88.data.Measurement;
@@ -92,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
                 DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
                         .format(new Date(last.getTimestamp()))));
         binding.runButton.setText(R.string.run_test_again);
+        updateGauge(last.getDownloadMbps(), SpeedTestManager.Phase.DOWNLOAD);
     }
 
     private void startTest() {
@@ -101,10 +103,14 @@ public class MainActivity extends AppCompatActivity {
         }
         setTestingUi(true);
         binding.textStatus.setText(R.string.status_download);
+        binding.textDownloadValue.setText(R.string.value_placeholder);
+        binding.textUploadValue.setText(R.string.value_placeholder);
+        updateGauge(0, SpeedTestManager.Phase.DOWNLOAD);
 
         speedTestManager.start(new SpeedTestManager.Listener() {
             @Override
             public void onProgress(SpeedTestManager.Phase phase, float percent, double mbps) {
+                updateGauge(mbps, phase);
                 if (phase == SpeedTestManager.Phase.DOWNLOAD) {
                     binding.textStatus.setText(R.string.status_download);
                     binding.textDownloadValue.setText(formatSpeed(mbps));
@@ -118,6 +124,7 @@ public class MainActivity extends AppCompatActivity {
             public void onFinished(double downloadMbps, double uploadMbps) {
                 binding.textDownloadValue.setText(formatSpeed(downloadMbps));
                 binding.textUploadValue.setText(formatSpeed(uploadMbps));
+                updateGauge(downloadMbps, SpeedTestManager.Phase.DOWNLOAD);
                 finishTest(downloadMbps, uploadMbps);
             }
 
@@ -151,14 +158,31 @@ public class MainActivity extends AppCompatActivity {
                 binding.textStatus.setText(R.string.status_done);
                 binding.runButton.setText(R.string.run_test_again);
                 setTestingUi(false);
-                sendNotification(downloadMbps, uploadMbps);
+                sendNotification(downloadMbps, uploadMbps, pingMs);
             });
         });
     }
 
     private void setTestingUi(boolean testing) {
-        binding.progressBar.setVisibility(testing ? TextView.VISIBLE : TextView.INVISIBLE);
         binding.runButton.setEnabled(!testing);
+        binding.runButton.setAlpha(testing ? 0.55f : 1f);
+    }
+
+    /** Pushes a value into the hero gauge, mapping the rate onto the arc (log scale). */
+    private void updateGauge(double mbps, SpeedTestManager.Phase phase) {
+        int start = ContextCompat.getColor(this, R.color.accent_download);
+        int end = ContextCompat.getColor(this, R.color.accent_upload);
+        String label = getString(phase == SpeedTestManager.Phase.DOWNLOAD
+                ? R.string.label_download : R.string.label_upload);
+        binding.speedGauge.setData(formatSpeed(mbps), fractionOf(mbps), label, start, end);
+    }
+
+    /** Maps Mbit/s to a 0..1 arc fill on a log scale (1000 Mbps ≈ full). */
+    private float fractionOf(double mbps) {
+        if (mbps <= 0) {
+            return 0f;
+        }
+        return (float) Math.min(1.0, Math.log10(mbps + 1) / Math.log10(1001.0));
     }
 
     private String formatSpeed(double mbps) {
@@ -259,20 +283,42 @@ public class MainActivity extends AppCompatActivity {
         manager.createNotificationChannel(channel);
     }
 
-    private void sendNotification(double downloadMbps, double uploadMbps) {
+    private void sendNotification(double downloadMbps, double uploadMbps, double pingMs) {
         NotificationManager manager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) {
             return;
         }
-        String text = String.format(Locale.US, "Download: %.1f Mbps  •  Upload: %.1f Mbps",
-                downloadMbps, uploadMbps);
+        String ping = pingMs >= 0 ? String.format(Locale.US, "  ·  %.0f ms", pingMs) : "";
+        String line = String.format(Locale.US, "↓ %.1f  ·  ↑ %.1f Mbps%s",
+                downloadMbps, uploadMbps, ping);
+
+        PendingIntent contentIntent = PendingIntent.getActivity(
+                this, 0,
+                new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
+                .setColor(ContextCompat.getColor(this, R.color.accent_download))
+                .setContentTitle(verdictFor(downloadMbps))
+                .setContentText(line)
+                .setStyle(new NotificationCompat.BigTextStyle()
+                        .setBigContentTitle(verdictFor(downloadMbps))
+                        .bigText(line + "\nTap to open Network88 and test again."))
                 .setAutoCancel(true)
-                .setContentTitle(getString(R.string.notif_title))
-                .setContentText(text);
+                .setContentIntent(contentIntent)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT);
         manager.notify(NOTIFICATION_ID, builder.build());
+    }
+
+    /** A short human verdict on the connection, keyed off download speed. */
+    private static String verdictFor(double downloadMbps) {
+        if (downloadMbps >= 150) return "⚡ Blazing fast connection";
+        if (downloadMbps >= 50) return "🚀 Fast connection";
+        if (downloadMbps >= 15) return "✅ Solid connection";
+        if (downloadMbps >= 5) return "🐢 Usable, but slow";
+        return "⚠️ Very slow connection";
     }
 
     @Override

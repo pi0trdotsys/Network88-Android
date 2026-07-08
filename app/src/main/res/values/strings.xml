@@ -16,6 +16,7 @@
     <!-- Home screen -->
     <string name="title_home">Network88</string>
     <string name="subtitle_home">Test your connection speed</string>
+    <string name="tagline">Speed test, reimagined</string>
     <string name="label_download">Download</string>
     <string name="label_upload">Upload</string>
     <string name="unit_mbps">Mbps</string>
